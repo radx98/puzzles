@@ -61,6 +61,118 @@
  * }
  */
 
-export function processParking(input) {
-    // TODO
+type Event = ['enter' | 'exit', string, number]
+type Rate = { perHour: number, graceMinutes: number }
+type Input = {
+  capacity: number,
+  rates: Rate,
+  events: Event[],
+}
+type Receipt = {
+  plate: string,
+  minutes: number,
+  fee: number,
+  exitedAt: number
+}
+type Inside = { string: { since: number } } | {}
+type Output = {
+  receipts: Receipt[],
+  revenue: number,
+  inside: Inside,
+  errors: string[]
+}
+
+function handleEnter(carsInside: Inside[], capacity: number, rate: Rate, event: Event): 'full' | 'already inside' | Inside[] {
+  const [, plate, since] = event
+  console.log('PLATE', plate)
+
+  if (carsInside.length === capacity) return 'full'
+  for (let i = 0; i < carsInside.length; i++) {
+    if (carsInside[i][plate]) return 'already inside'
   }
+
+  carsInside.push({ [plate]: { since: since } })
+  return carsInside
+}
+
+function handleExit(carsInside: Inside[], capacity: number, rate: Rate, event: Event): 'not inside' | 'before entry' | Receipt {
+  const [, plate, since] = event
+  const platesInside = carsInside.map(car => Object.keys(car)[0])
+
+  console.log('exiting EVENT', event, 'CARSINSIDE', carsInside, 'PLATESINSIDE', platesInside)
+
+  if (!platesInside.includes(plate)) {
+    return 'not inside'
+  }
+
+  const exitingCar = carsInside[platesInside.indexOf(plate)]
+  console.log('EXITING CAR', exitingCar)
+  if (since < exitingCar[plate].since) {
+    return 'before entry'
+  }
+
+  const totalMinutesParked = event[2] - exitingCar[plate].since
+  let fee = 0
+  if (totalMinutesParked > rate.graceMinutes) {
+    fee = rate.perHour * Math.ceil((totalMinutesParked - rate.graceMinutes) / 60)
+  }
+  console.log('FEE', fee, 'TMP', totalMinutesParked, 'HRS', Math.ceil((totalMinutesParked - rate.graceMinutes) / 60), 'GRACE', rate.graceMinutes)
+
+  let receipt: Receipt = {
+    plate: plate,
+    minutes: totalMinutesParked,
+    fee: fee,
+    exitedAt: event[2]
+  }
+
+  carsInside.splice(platesInside.indexOf(plate), 1)
+
+  console.log('CARSINSIDEAFTERDELETION', carsInside)
+  console.log('CTOREM', platesInside.indexOf(plate))
+  console.log('RMVC-1', carsInside.slice(0, platesInside.indexOf(plate)), 'RMVC-2', carsInside.slice(platesInside.indexOf(plate) + 1, carsInside.length - 1))
+
+  return receipt
+}
+
+export function processParking(input: Input): Output {
+  const { capacity, rates, events } = input
+  let output: Output = {
+    receipts: [],
+    revenue: 0,
+    inside: {},
+    errors: []
+  }
+  let carsInside = []
+
+  for (let i = 0; i < events.length; i++) {
+
+    if (events[i][0] === 'enter') {
+
+      const enterResult = handleEnter(carsInside, capacity, rates, events[i])
+      console.log('ENR', enterResult)
+      if (typeof (enterResult) === 'string') {
+        output.errors.push(enterResult)
+      }
+
+    } else if (events[i][0] === 'exit') {
+
+      const exitResult = handleExit(carsInside, capacity, rates, events[i])
+      console.log('EXR', exitResult)
+      if (typeof (exitResult) === 'string') {
+        output.errors.push(exitResult)
+      } else {
+        output.receipts.push(exitResult)
+        output.revenue += exitResult.fee
+      }
+
+    }
+
+    console.log('OUTREV', output.revenue)
+
+  }
+
+  console.log('CARSINSIDEFINAL', carsInside)
+  output.inside = carsInside.length != 0 ? carsInside[0] : {}
+
+  return output
+}

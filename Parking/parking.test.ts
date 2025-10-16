@@ -11,7 +11,7 @@ describe('processParking', () => {
         ['enter', 'ABC123', 0],
         ['enter', 'XYZ999', 5],
         ['enter', 'OVERFL', 10],   // full -> error
-        ['exit', 'ABC123', 20],    // 20min -> within grace -> fee 0
+        ['exit', 'ABC123', 20],    // 20min -> over grace -> fee 300
         ['exit', 'XYZ999', 100],   // 95min -> ceil((95-15)/60)=2 -> 600
         ['exit', 'GHOST', 50],     // not inside -> error
       ] as const,
@@ -19,10 +19,10 @@ describe('processParking', () => {
 
     const out = processParking(input);
 
-    expect(out.revenue).toBe(600);
+    expect(out.revenue).toBe(900);
     expect(out.inside).toEqual({});
     expect(out.receipts).toEqual([
-      { plate: 'ABC123', minutes: 20, fee: 0, exitedAt: 20 },
+      { plate: 'ABC123', minutes: 20, fee: 300, exitedAt: 20 },
       { plate: 'XYZ999', minutes: 95, fee: 600, exitedAt: 100 },
     ]);
     expect(out.errors.length).toBe(2);
@@ -148,16 +148,16 @@ describe('processParking', () => {
       events: [
         ['enter', 'STAY1', 7],
         ['enter', 'LEAVE', 10],
-        ['exit', 'LEAVE', 30],   // within grace -> 0
+        ['exit', 'LEAVE', 30],   // 20min -> over grace -> fee 300
       ] as const,
     };
 
     const out = processParking(input);
 
     expect(out.receipts).toEqual([
-      { plate: 'LEAVE', minutes: 20, fee: 0, exitedAt: 30 },
+      { plate: 'LEAVE', minutes: 20, fee: 300, exitedAt: 30 },
     ]);
-    expect(out.revenue).toBe(0);
+    expect(out.revenue).toBe(300);
     expect(out.inside).toEqual({ STAY1: { since: 7 } });
     expect(out.errors).toEqual([]);
   });
